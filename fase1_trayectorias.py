@@ -92,3 +92,45 @@ if __name__ == "__main__":
     #T_estrella = trayectoria_estrella(centro, 0.040, 0.018, altura_plano)
 
     simular_mypalletizer(L1, L2, L3, L4, T_circulo)
+
+#Cinematica Directa:
+#Empezamos con las variables:
+q1, q2, q3, q4 = me.dynamicsymbols('q1 q2 q3 q4')
+L1, L2, L3, L4 = 0.115, 0.13, 0.13, 0.03412
+
+#Refrence frames
+N = me.ReferenceFrame('N')
+A = N.orientnew('A', 'Axis', (q1, N.z))
+B = A.orientnew('B', 'Axis', (q2, A.y))
+C = B.orientnew('C', 'Axis', (q3, B.y))
+D = C.orientnew('D', 'Axis', (q4, C.y))
+
+#Origen para que cada punto se pueda describir based on other points
+O = me.Point('O')
+
+#Describimos nuestros puntos:
+J1 = O
+J2 = J1.locatenew('J2', L1*N.z)
+J3 = J2.locatenew('J3', L2*B.x)
+J4 = J3.locatenew('J4',L3 * C.x)
+
+Laser = J4.locatenew('Laser',L4 * D.x)
+
+#laser con respecto a origen
+r_laser = Laser.pos_from(O).express(N)
+r_laser_vectors = [sp.simplify(r_laser.dot(N.x)), sp.simplify(r_laser.dot(N.y)), sp.simplify(r_laser.dot(N.z))]
+
+fk = sp.lambdify(
+    (q1, q2, q3, q4),
+    (r_laser_vectors[0], r_laser_vectors[1], r_laser_vectors[2]),
+)
+
+def cinematica_directa(q1_val, q2_val, q3_val, q4_val):
+    x, y, z = fk(
+        q1_val,
+        q2_val,
+        q3_val,
+        q4_val
+    )
+
+    return np.array([x, y, z], dtype=float)
