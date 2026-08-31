@@ -16,7 +16,7 @@ puerto = puertos[0]
 
 print(f"\nIntentando conectar a: {puerto}")
 
-mc = MyPalletizer260(puerto, 1000000)
+mc = MyPalletizer260(puerto, 115200)
 
 print("Controlador:", mc.is_controller_connected())
 print("Ángulos:", mc.get_angles())

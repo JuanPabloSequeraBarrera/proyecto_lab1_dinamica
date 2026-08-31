@@ -3,7 +3,7 @@ from pymycobot import utils
 
 puerto = utils.get_port_list()[0]
 
-mc = MyPalletizer260(puerto, 1000000)
+mc = MyPalletizer260(puerto, 115200)
 
 mc.power_on()
 
