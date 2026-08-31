@@ -1,3 +1,4 @@
+#a jp le gusta el pene
 """Fase 1 del preinforme: crear y visualizar trayectorias planas.
 
 En esta fase T es una matriz de N puntos. Cada fila contiene [x, y, z]
