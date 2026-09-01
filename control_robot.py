@@ -12,7 +12,7 @@ import numpy as np
 from configuracion_robot import (
     INTENTOS_LECTURA,
     PAUSA_LECTURA_S,
-    PUERTO_ROBOT,
+    PUERTO_ROBOT
 )
 
 
@@ -23,6 +23,12 @@ LIMITES_COORDENADAS = (
     (-180.0, 180.0),
 )
 
+LIMITES_ANGULOS = (
+    (-162.0, 160.0),  # J1
+    (-2.0, 90.0),     # J2
+    (-92.0, 60.0),    # J3
+    (-180.0, 180.0),  # J4
+)
 
 def _convertir_vector(valor, longitud):
     """Convierte una respuesta válida de la API en una lista de flotantes."""
@@ -81,8 +87,7 @@ def leer_estado(mc, metodo, nombre, valor_correcto=1):
 
 
 def conectar_robot(puerto=PUERTO_ROBOT):
-    # La dependencia serial se carga solo al conectar hardware. Así, las
-    # transformaciones matemáticas pueden probarse sin tener el robot presente.
+    # La dependencia serial se carga solo al conectar hardware
     from pymycobot import MyPalletizer260
 
     print(f"Conectando con el robot en {puerto}")
@@ -207,3 +212,114 @@ def ejecutar_trayectoria(mc, puntos_robot, velocidad):
         mc.sync_send_coords(objetivo, velocidad, timeout=20)
         if indice == 1 or indice == total or indice % 10 == 0:
             print(f"Punto {indice}/{total}")
+
+def validar_angulos(angulos):
+    """Valida una configuración angular [J1, J2, J3, J4] en grados."""
+    vector = _convertir_vector(angulos, 4)
+
+    if vector is None:
+        raise ValueError(
+            "Los ángulos deben ser cuatro números: [J1, J2, J3, J4]."
+        )
+
+    for indice, (valor, (minimo, maximo)) in enumerate(
+        zip(vector, LIMITES_ANGULOS),
+        start=1,
+    ):
+        if not minimo <= valor <= maximo:
+            raise ValueError(
+                f"J{indice}={valor:.2f}° está fuera del intervalo "
+                f"[{minimo}, {maximo}]°."
+            )
+
+    return vector
+
+
+def mover_angulos_y_verificar(
+    mc,
+    objetivo,
+    velocidad,
+    tolerancia_grados=2.0,
+):
+    """Mueve el robot a cuatro ángulos y verifica la posición final."""
+    objetivo = validar_angulos(objetivo)
+
+    print(
+        "Moviendo a los ángulos:",
+        [round(valor, 2) for valor in objetivo],
+    )
+
+    # Para ángulos se usa sync_send_angles, no sync_send_coords.
+    mc.sync_send_angles(objetivo, velocidad)
+
+    final = leer_vector(
+        mc,
+        mc.get_angles,
+        "los ángulos finales",
+    )
+
+    errores = [
+        abs(final[i] - objetivo[i])
+        for i in range(4)
+    ]
+    error_maximo = max(errores)
+
+    print("Ángulos alcanzados:", final)
+    print(
+        "Errores por articulación:",
+        [round(error, 2) for error in errores],
+    )
+
+    if error_maximo > tolerancia_grados:
+        raise RuntimeError(
+            f"El error angular máximo fue {error_maximo:.2f}°. "
+            "No se continuará con la trayectoria."
+        )
+
+    return final
+
+
+def ejecutar_trayectoria_angulos(mc, puntos_angulares, velocidad):
+    """Ejecuta una trayectoria N x 4 expresada en grados."""
+    puntos = np.asarray(puntos_angulares, dtype=float)
+
+    if puntos.ndim != 2 or puntos.shape[1] != 4:
+        raise ValueError(
+            "La trayectoria angular debe tener tamaño N x 4."
+        )
+
+    if len(puntos) == 0:
+        raise ValueError("La trayectoria angular está vacía.")
+
+    if not np.all(np.isfinite(puntos)):
+        raise ValueError(
+            "La trayectoria contiene valores no numéricos o infinitos."
+        )
+
+    # Valida toda la trayectoria antes de mover el robot.
+    for punto in puntos:
+        validar_angulos(punto.tolist())
+
+    total = len(puntos)
+
+    for indice, punto in enumerate(puntos, start=1):
+        objetivo = punto.tolist()
+
+        mc.sync_send_angles(objetivo, velocidad)
+
+        if indice == 1 or indice == total or indice % 10 == 0:
+            print(
+                f"Punto angular {indice}/{total}:",
+                np.round(punto, 2).tolist(),
+            )
+
+    final = leer_vector(
+        mc,
+        mc.get_angles,
+        "los ángulos después de la trayectoria",
+    )
+
+    print("Trayectoria angular terminada.")
+    print("Ángulos finales:", final)
+
+    return final
