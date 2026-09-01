@@ -323,3 +323,14 @@ def ejecutar_trayectoria_angulos(mc, puntos_angulares, velocidad):
     print("Ángulos finales:", final)
 
     return final
+
+def cinematica_inversa(x,y,l1,l2):
+    x= x -0.0347
+    y= y + 0.0529
+    r=np.sqrt(x*2+y*2)
+    alpha=np.arccos((-r*2 + l12 + l2*2)/(2*l1*l2))
+    q2=alpha-np.pi
+    phi=np.arcsin((l2*np.sin(alpha))/r)
+    theta=np.arctan(y/x)
+    q1=theta-phi
+    return np.column_stack([0,q1,q2,0])
