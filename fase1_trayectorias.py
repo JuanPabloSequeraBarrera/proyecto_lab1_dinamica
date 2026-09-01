@@ -9,6 +9,8 @@ directa, el Jacobiano, la cinematica inversa, Open3D y las colisiones.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sympy as sp
+import sympy.physics.mechanics as me
 
 
 def trayectoria_circulo(centro, radio, z, numero_puntos=120):
@@ -94,35 +96,37 @@ if __name__ == "__main__":
     simular_mypalletizer(L1, L2, L3, L4, T_circulo)
 
 #Cinematica Directa:
-#Empezamos con las variables:
 q1, q2, q3, q4 = me.dynamicsymbols('q1 q2 q3 q4')
-L1, L2, L3, L4 = 0.115, 0.13, 0.13, 0.03412
 
-#Refrence frames
-N = me.ReferenceFrame('N')
-A = N.orientnew('A', 'Axis', (q1, N.z))
-B = A.orientnew('B', 'Axis', (q2, A.y))
-C = B.orientnew('C', 'Axis', (q3, B.y))
-D = C.orientnew('D', 'Axis', (q4, C.y))
+L1 = 0.115
+L2 = 0.130
+L3 = 0.130
+L4 = 0.03412
 
-#Origen para que cada punto se pueda describir based on other points
-O = me.Point('O')
 
-#Describimos nuestros puntos:
-J1 = O
-J2 = J1.locatenew('J2', L1*N.z)
-J3 = J2.locatenew('J3', L2*B.x)
-J4 = J3.locatenew('J4',L3 * C.x)
+x_laser = sp.cos(q1) * (
+    L2 * sp.cos(q2)
+    + L3 * sp.cos(q2 + q3)
+    + L4 * sp.cos(q2 + q3 + q4)
+)
 
-Laser = J4.locatenew('Laser',L4 * D.x)
+y_laser = sp.sin(q1) * (
+    L2 * sp.cos(q2)
+    + L3 * sp.cos(q2 + q3)
+    + L4 * sp.cos(q2 + q3 + q4)
+)
 
-#laser con respecto a origen
-r_laser = Laser.pos_from(O).express(N)
-r_laser_vectors = [sp.simplify(r_laser.dot(N.x)), sp.simplify(r_laser.dot(N.y)), sp.simplify(r_laser.dot(N.z))]
+z_laser = (
+    L1
+    + L2 * sp.sin(q2)
+    + L3 * sp.sin(q2 + q3)
+    + L4 * sp.sin(q2 + q3 + q4)
+)
 
 fk = sp.lambdify(
     (q1, q2, q3, q4),
-    (r_laser_vectors[0], r_laser_vectors[1], r_laser_vectors[2]),
+    (x_laser, y_laser, z_laser),
+    'numpy'
 )
 
 def cinematica_directa(q1_val, q2_val, q3_val, q4_val):
@@ -134,3 +138,37 @@ def cinematica_directa(q1_val, q2_val, q3_val, q4_val):
     )
 
     return np.array([x, y, z], dtype=float)
+
+#Cinematica Inversa
+def cinematica_inversa(x, y, z):
+    L1, L2, L3, L4 = 0.115, 0.13, 0.13, 0.03412
+
+    q1_sol = np.arctan2(y, x)
+    r = np.sqrt(x**2 + y**2)
+    z_prima = z - L1
+
+    L34 = L3 + L4 #assuming q4=0
+
+    cos_q3 = (
+        r**2
+        + z_prima**2
+        - L2**2
+        - L34**2
+    ) / (2 * L2 * L34)
+
+    cos_q3 = np.clip(cos_q3, -1.0, 1.0)
+    q3_sol = np.arccos(cos_q3)
+
+
+    q2_sol = (
+    np.arctan2(z_prima, r) -
+    np.arctan2(L34 * np.sin(q3_sol),L2 + L34 * np.cos(q3_sol)))
+
+    q4_sol = 0.0
+
+    return np.array([
+        q1_sol,
+        q2_sol,
+        q3_sol,
+        q4_sol
+    ])
