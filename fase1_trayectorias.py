@@ -95,27 +95,31 @@ if __name__ == "__main__":
 
     simular_mypalletizer(L1, L2, L3, L4, T_circulo)
 
-#Cinematica Directa:
+# Cinematica directa
+#Vairbales
 q1, q2, q3, q4 = me.dynamicsymbols('q1 q2 q3 q4')
 
+#Longitudes del robot
 L1 = 0.115
 L2 = 0.130
 L3 = 0.130
 L4 = 0.03412
 
-
+#posicion en x del laser, q1:rotacion base, q2: angulo primer joint, q2+q3: angulo 2nd joint, q2+q3+q4: angulo last joint
 x_laser = sp.cos(q1) * (
     L2 * sp.cos(q2)
     + L3 * sp.cos(q2 + q3)
     + L4 * sp.cos(q2 + q3 + q4)
 )
 
+#posicion en y del laser
 y_laser = sp.sin(q1) * (
     L2 * sp.cos(q2)
     + L3 * sp.cos(q2 + q3)
     + L4 * sp.cos(q2 + q3 + q4)
 )
 
+#posicion en z del laser
 z_laser = (
     L1
     + L2 * sp.sin(q2)
@@ -123,50 +127,60 @@ z_laser = (
     + L4 * sp.sin(q2 + q3 + q4)
 )
 
-fk = sp.lambdify(
+fk = sp.lambdify( #funcion convierte las ecuaciones simbolicas a una funcion numerica, returns las 3 coordenadas del laser
     (q1, q2, q3, q4),
     (x_laser, y_laser, z_laser),
     'numpy'
 )
 
+#recibe angulos calcula posicion
 def cinematica_directa(q1_val, q2_val, q3_val, q4_val):
-    x, y, z = fk(
+
+    x, y, z = fk( #pone los angulos en la ecuacion
         q1_val,
         q2_val,
         q3_val,
         q4_val
     )
 
-    return np.array([x, y, z], dtype=float)
+    return np.array([x, y, z], dtype=float) #devuelve posicon del laser como vector
+
+
 
 #Cinematica Inversa
-def cinematica_inversa(x, y, z):
-    L1, L2, L3, L4 = 0.115, 0.13, 0.13, 0.03412
+def cinematica_inversa(x, y, z): #recibimos coordenadas and we output angulos para llegar a esa posicion
+    L1, L2, L3, L4 = 0.115, 0.13, 0.13, 0.03412 # robot lengthss
 
-    q1_sol = np.arctan2(y, x)
-    r = np.sqrt(x**2 + y**2)
-    z_prima = z - L1
+    #rotacion base
+    q1_sol = np.arctan2(y, x) #arctan2 encuentra angulo de la base a partir de coordenadas + las de en el cuadrante que es
+    r = np.sqrt(x**2 + y**2) # distancia radial
+    z_prima = z - L1 # elimina altura inicial para trabajar con la posicion del laser respecto primera articulacion
 
-    L34 = L3 + L4 #assuming q4=0
+    L34 = L3 + L4 #assuming q4=0 (L4 y L3 alineados)
 
-    cos_q3 = (
+    cos_q3 = ( #cosine rule para encontrar el coseno del angulo q3
         r**2
         + z_prima**2
         - L2**2
         - L34**2
     ) / (2 * L2 * L34)
 
-    cos_q3 = np.clip(cos_q3, -1.0, 1.0)
-    q3_sol = np.arccos(cos_q3)
+    cos_q3 = np.clip(cos_q3, -1.0, 1.0) # limitamos valor
+    q3_sol = np.arccos(cos_q3) #q3 a partir del coseno calculado
 
 
     q2_sol = (
-    np.arctan2(z_prima, r) -
-    np.arctan2(L34 * np.sin(q3_sol),L2 + L34 * np.cos(q3_sol)))
+    np.arctan2(z_prima, r) # angulo horizontal hasta punto objetivo
+    -
+    np.arctan2( #angulo generado por segunda parte del brazo
+        L34 * np.sin(q3_sol),
+        L2 + L34 * np.cos(q3_sol)
+    )
+    )
 
-    q4_sol = 0.0
+    q4_sol = 0.0 #se fija cause we need 4 ecuaciones
 
-    return np.array([
+    return np.array([ #devuelven los cuatros angulos (en rads)
         q1_sol,
         q2_sol,
         q3_sol,
