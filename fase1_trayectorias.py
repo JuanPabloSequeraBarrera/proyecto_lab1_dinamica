@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
 import sympy.physics.mechanics as me
+from configuracion_robot import ORIGEN_DIBUJO_GRADOS
 
 def trayectoria_poligono(centro, radio, z, numero_lados, puntos_por_lado=20): #el radio aquí es el radio de la circurferencia imaginaria de un poligono, o sea donde viven los vertices
     """Devuelve un poligono regular cerrado: triangulo, cuadrado, hexagono, etc."""
@@ -91,28 +92,159 @@ def trayectoria_circulo(centro, radio, z, numero_puntos=120):
 
 
 
+def cinematica_inversa(
+    T,
+    l1=0.140,
+    l2_x=0.178,
+    l2_y=-0.005,
+    home=None,
+):
+    """
+    Convierte desplazamientos locales [x, y, z] en ángulos absolutos
+    [J1, J2, J3, J4].
 
-def cinematica_inversa(T,l1,l2):
-    # Sacamos directamente las columnas x e y de la trayectoria
-    x = T[:, 0]
-    y = T[:, 1]
-    home = [-2.19, 4.13, 1.66, 0.52]
-    x = x - 0.0347
-    y = y + 0.0529
+    T representa desplazamientos respecto a la posición home.
+    Esta versión mueve únicamente J2 y J3.
+    """
 
-    r = np.sqrt(x**2 + y**2)
-    alpha = np.arccos((-r**2 + l1**2 + l2**2) / (2 * l1 * l2))
+    trayectoria = np.asarray(T, dtype=float)
 
-    q2 = -alpha + np.pi
+    if trayectoria.ndim != 2 or trayectoria.shape[1] != 3:
+        raise ValueError("T debe ser una matriz N x 3.")
 
-    phi = np.arcsin((l2 * np.sin(alpha)) / r)
+    if not np.all(np.isfinite(trayectoria)):
+        raise ValueError("T contiene valores no numéricos.")
 
-    theta = np.arctan2(y, x)
-    q1 = theta - phi
+    if not np.allclose(trayectoria[:, 2], 0.0):
+        raise ValueError(
+            "Esta cinemática es plana: la columna z de T debe ser cero."
+        )
 
-    angulos = np.column_stack((np.rad2deg(np.zeros_like(q1) - home[0]),np.rad2deg(q1 - home[1]),np.rad2deg(q2 - home[2]),np.rad2deg(np.zeros_like(q1) - home[3])))
-    print(angulos)
+    if home is None:
+        home = ORIGEN_DIBUJO_GRADOS
+
+    home = np.asarray(home, dtype=float)
+
+    if home.shape != (4,):
+        raise ValueError(
+            "home debe contener [J1, J2, J3, J4] en grados."
+        )
+
+    if l1 <= 0 or l2_x <= 0:
+        raise ValueError("Las longitudes deben ser positivas.")
+
+    # El segundo eslabón tiene un pequeño desfase de -5 mm.
+    l2 = np.hypot(l2_x, l2_y)
+    beta = np.arctan2(l2_y, l2_x)
+
+    # Ángulos de J2 y J3 en la posición home.
+    j2_home = np.deg2rad(home[1])
+    j3_home = np.deg2rad(home[2])
+
+    # Conversión entre los ángulos del motor y el modelo 2R.
+    theta1_home = j2_home - np.pi / 2.0
+    theta2_home = j3_home + np.pi / 2.0 + beta
+
+    # Posición cartesiana correspondiente al home.
+    x_home = (
+        l1 * np.cos(theta1_home)
+        + l2 * np.cos(theta1_home + theta2_home)
+    )
+
+    y_home = (
+        l1 * np.sin(theta1_home)
+        + l2 * np.sin(theta1_home + theta2_home)
+    )
+
+    # T contiene desplazamientos alrededor del home.
+    x = x_home + trayectoria[:, 0]
+    y = y_home + trayectoria[:, 1]
+
+    cos_theta2 = (
+        x**2 + y**2 - l1**2 - l2**2
+    ) / (2.0 * l1 * l2)
+
+    tolerancia = 1e-9
+
+    if np.any(cos_theta2 < -1.0 - tolerancia) or np.any(
+        cos_theta2 > 1.0 + tolerancia
+    ):
+        indices = np.where(
+            (cos_theta2 < -1.0 - tolerancia)
+            | (cos_theta2 > 1.0 + tolerancia)
+        )[0]
+
+        raise ValueError(
+            "La trayectoria contiene puntos fuera del alcance. "
+            f"Primer punto problemático: {int(indices[0]) + 1}."
+        )
+
+    cos_theta2 = np.clip(cos_theta2, -1.0, 1.0)
+
+    # Mantener la misma configuración de codo que el home.
+    signo_codo = 1.0 if theta2_home >= 0.0 else -1.0
+    theta2 = signo_codo * np.arccos(cos_theta2)
+
+    theta1 = np.arctan2(y, x) - np.arctan2(
+        l2 * np.sin(theta2),
+        l1 + l2 * np.cos(theta2),
+    )
+
+    # Conversión del modelo matemático a ángulos del robot.
+    j2 = np.rad2deg(theta1 + np.pi / 2.0)
+    j3 = np.rad2deg(theta2 - np.pi / 2.0 - beta)
+
+    # J1 y J4 permanecen en sus valores home.
+    j1 = np.full_like(j2, home[0])
+    j4 = np.full_like(j2, home[3])
+
+    angulos = np.column_stack((j1, j2, j3, j4))
+
+    limites_minimos = np.array([-162.0, -2.0, -92.0, -180.0])
+    limites_maximos = np.array([162.0, 90.0, 60.0, 180.0])
+
+    puntos_invalidos = np.where(
+        np.any(
+            (angulos < limites_minimos)
+            | (angulos > limites_maximos),
+            axis=1,
+        )
+    )[0]
+
+    if len(puntos_invalidos) > 0:
+        indice = int(puntos_invalidos[0])
+
+        raise ValueError(
+            f"El punto {indice + 1} produce ángulos imposibles: "
+            f"{np.round(angulos[indice], 2).tolist()}."
+        )
+
     return angulos
+
+
+
+
+# def cinematica_inversa(T,l1,l2):
+#     # Sacamos directamente las columnas x e y de la trayectoria
+#     x = T[:, 0]
+#     y = T[:, 1]
+#     home = [-2.19, 4.13, 1.66, 0.52]
+#     x = x - 0.0347
+#     y = y + 0.0529
+
+#     r = np.sqrt(x**2 + y**2)
+#     alpha = np.arccos((-r**2 + l1**2 + l2**2) / (2 * l1 * l2))
+
+#     q2 = -alpha + np.pi
+
+#     phi = np.arcsin((l2 * np.sin(alpha)) / r)
+
+#     theta = np.arctan2(y, x)
+#     q1 = theta - phi
+
+#     angulos = np.column_stack((np.rad2deg(np.zeros_like(q1) - home[0]),np.rad2deg(q1 - home[1]),np.rad2deg(q2 - home[2]),np.rad2deg(np.zeros_like(q1) - home[3])))
+#     print(angulos)
+#     return angulos
 
 
 
