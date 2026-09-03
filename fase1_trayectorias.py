@@ -246,20 +246,35 @@ def cinematica_inversa(
 #     print(angulos)
 #     return angulos
 
-
-
-
-
 if __name__ == "__main__":
-    #hay que cambiar esto por las longitudes del robot que tengamos
-    L1, L2, L3, L4 = 0.06, 0.08, 0.08, 0.04
 
-    centro = (0.00, 0.00)
-    altura_plano = 0 #revisar mañana si cambiar
+    centro = (0.0, 0.0)
+    altura_plano = 0.0
 
-    T_circulo = trayectoria_circulo(centro, 0.035, altura_plano)
-    T_cuadrado = trayectoria_poligono(centro, 0.035, altura_plano, 4)
-    T_triangulo = trayectoria_poligono(centro, 0.035, altura_plano, 3)
-    T_hexagono = trayectoria_poligono(centro, 0.035, altura_plano, 6)
+    T_circulo = trayectoria_circulo(
+        centro=centro,
+        radio=0.005,
+        z=altura_plano,
+        numero_puntos=20,
+    )
+
+    angulos = cinematica_inversa(
+        T_circulo,
+        l1=0.140,
+        l2_x=0.178,
+        l2_y=-0.005,
+        home=[-2.19, 4.13, 1.66, 0.52],
+    )
+
+    print("\nÁngulos calculados:")
+    print(np.round(angulos, 2))
+
+    print("\nMínimos:")
+    print(np.round(np.min(angulos, axis=0), 2))
+
+    print("\nMáximos:")
+    print(np.round(np.max(angulos, axis=0), 2))
+    #T_cuadrado = trayectoria_poligono(centro, 0.035, altura_plano, 4)
+    #T_triangulo = trayectoria_poligono(centro, 0.035, altura_plano, 3)
+    #T_hexagono = trayectoria_poligono(centro, 0.035, altura_plano, 6)
     #simular_mypalletizer(L1, L2, L3, L4, T_circulo)
-    cinematica_inversa(T_circulo,L1,L2)
