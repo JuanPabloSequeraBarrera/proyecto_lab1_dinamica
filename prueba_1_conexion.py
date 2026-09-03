@@ -1,9 +1,6 @@
 from pymycobot import MyPalletizer260
 from pymycobot import utils
 import time
-from control_robot import (
-    conectar_robot,
-)
 
 print("Puertos disponibles:")
 
@@ -15,11 +12,11 @@ for i, puerto in enumerate(puertos):
 if len(puertos) == 0:
     raise RuntimeError("No se encontró ningún puerto serial.")
 
-puerto = puertos[0]
+puerto = "/dev/cu.usbserial-5AE20106981"
 
 print(f"\nIntentando conectar a: {puerto}")
 
-mc = MyPalletizer260(puerto, 115200)
+mc = MyPalletizer260("/dev/cu.usbserial-5AE20106981", 115200)
 
 print("Controlador:", mc.is_controller_connected())
 print("Ángulos:", mc.get_angles())

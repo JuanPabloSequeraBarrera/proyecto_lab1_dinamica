@@ -5,7 +5,7 @@ módulo no recalibra los ceros mecánicos de los servos.
 """
 
 from math import cos, isfinite, radians, sin
-from time import sleep
+from time import monotonic, sleep
 
 import numpy as np
 
@@ -24,9 +24,9 @@ LIMITES_COORDENADAS = (
 )
 
 LIMITES_ANGULOS = (
-    (-162.0, 160.0),  # J1
-    (-360, 90.0),     # J2
-    (-92.0, 120.0),    # J3
+    (-162.0, 162.0),  # J1
+    (-2.0, 90.0),     # J2
+    (-92.0, 60.0),    # J3
     (-180.0, 180.0),  # J4
 )
 
@@ -234,6 +234,42 @@ def validar_angulos(angulos):
 
     return vector
 
+def esperar_angulos(
+    mc,
+    objetivo,
+    tolerancia_grados=2.0,
+    timeout_s=15.0,
+):
+    """Espera hasta comprobar que el robot alcanzó realmente el objetivo."""
+
+    objetivo = np.asarray(objetivo, dtype=float)
+    inicio = monotonic()
+    ultima_lectura = None
+
+    while monotonic() - inicio < timeout_s:
+        try:
+            respuesta = mc.get_angles()
+            ultima_lectura = _convertir_vector(respuesta, 4)
+        except Exception:
+            ultima_lectura = None
+
+        if ultima_lectura is not None:
+            errores = np.abs(
+                np.asarray(ultima_lectura, dtype=float) - objetivo
+            )
+            error_maximo = float(np.max(errores))
+
+            if error_maximo <= tolerancia_grados:
+                return ultima_lectura
+
+        sleep(0.1)
+
+    raise RuntimeError(
+        "El robot no alcanzó el objetivo dentro del tiempo permitido. "
+        f"Objetivo: {np.round(objetivo, 2).tolist()}. "
+        f"Última lectura: {ultima_lectura}."
+    )
+
 
 def mover_angulos_y_verificar(
     mc,
@@ -250,12 +286,13 @@ def mover_angulos_y_verificar(
     )
 
     # Para ángulos se usa sync_send_angles, no sync_send_coords.
-    mc.sync_send_angles(objetivo, velocidad)
+    mc.send_angles(objetivo, velocidad)
 
-    final = leer_vector(
+    final = esperar_angulos(
         mc,
-        mc.get_angles,
-        "los ángulos finales",
+        objetivo,
+        tolerancia_grados=tolerancia_grados,
+        timeout_s=15.0,
     )
 
     errores = [
@@ -279,8 +316,15 @@ def mover_angulos_y_verificar(
     return final
 
 
-def ejecutar_trayectoria_angulos(mc, puntos_angulares, velocidad):
-    """Ejecuta una trayectoria N x 4 expresada en grados."""
+def ejecutar_trayectoria_angulos(
+    mc,
+    puntos_angulares,
+    velocidad,
+    tolerancia_grados=2.0,
+    timeout_por_punto=10.0,
+):
+    """Ejecuta y verifica una trayectoria angular N x 4."""
+
     puntos = np.asarray(puntos_angulares, dtype=float)
 
     if puntos.ndim != 2 or puntos.shape[1] != 4:
@@ -296,30 +340,34 @@ def ejecutar_trayectoria_angulos(mc, puntos_angulares, velocidad):
             "La trayectoria contiene valores no numéricos o infinitos."
         )
 
-    # Valida toda la trayectoria antes de mover el robot.
-    for punto in puntos:
+    if not 1 <= velocidad <= 100:
+        raise ValueError("La velocidad debe estar entre 1 y 100.")
+
+    # Validar todos los puntos antes de mover el robot.
+    objetivos = [
         validar_angulos(punto.tolist())
+        for punto in puntos
+    ]
 
-    total = len(puntos)
+    total = len(objetivos)
+    final = None
 
-    for indice, punto in enumerate(puntos, start=1):
-        objetivo = punto.tolist()
+    for indice, objetivo in enumerate(objetivos, start=1):
+        mc.send_angles(objetivo, velocidad)
 
-        mc.sync_send_angles(objetivo, velocidad)
+        final = esperar_angulos(
+            mc,
+            objetivo,
+            tolerancia_grados=tolerancia_grados,
+            timeout_s=timeout_por_punto,
+        )
 
-        if indice == 1 or indice == total or indice % 10 == 0:
-            print(
-                f"Punto angular {indice}/{total}:",
-                np.round(punto, 2).tolist(),
-            )
+        print(
+            f"Punto angular {indice}/{total}:",
+            [round(valor, 2) for valor in final],
+        )
 
-    final = leer_vector(
-        mc,
-        mc.get_angles,
-        "los ángulos después de la trayectoria",
-    )
-
-    print("Trayectoria angular terminada.")
+    print("Trayectoria angular terminada y verificada.")
     print("Ángulos finales:", final)
 
     return final

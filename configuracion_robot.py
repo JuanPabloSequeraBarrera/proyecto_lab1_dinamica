@@ -6,7 +6,7 @@
 # Unidades: [mm, mm, mm, grados].
 ORIGEN_DIBUJO_MM = [171.6, -5.5, 209.4, -7.03]
 ORIGEN_DIBUJO_GRADOS = [-2.19, 4.13, 1.66, 0.52]
-PUERTO_ROBOT = "COM3"
+PUERTO_ROBOT = "/dev/cu.usbserial-5AE20106981"
 # Giro del marco local del dibujo respecto a los ejes X-Y de la base.
 GIRO_DIBUJO_GRADOS = 0
 
