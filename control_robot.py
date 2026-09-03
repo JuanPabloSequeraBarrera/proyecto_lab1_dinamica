@@ -25,8 +25,8 @@ LIMITES_COORDENADAS = (
 
 LIMITES_ANGULOS = (
     (-162.0, 160.0),  # J1
-    (-2.0, 90.0),     # J2
-    (-92.0, 60.0),    # J3
+    (-360, 90.0),     # J2
+    (-92.0, 120.0),    # J3
     (-180.0, 180.0),  # J4
 )
 
@@ -324,13 +324,22 @@ def ejecutar_trayectoria_angulos(mc, puntos_angulares, velocidad):
 
     return final
 
-def cinematica_inversa(x,y,l1,l2):
-    x= x -0.0347
-    y= y + 0.0529
-    r=np.sqrt(x*2+y*2)
-    alpha=np.arccos((-r*2 + l12 + l2*2)/(2*l1*l2))
-    q2=alpha-np.pi
-    phi=np.arcsin((l2*np.sin(alpha))/r)
-    theta=np.arctan(y/x)
-    q1=theta-phi
-    return np.column_stack([0,q1,q2,0])
+def obtener_estado(mc):
+    """Devuelve un dict con los ángulos actuales y si el robot está encendido."""
+    estado = {"angulos": obtener_angulos(mc)}
+    if hasattr(mc, "is_power_on"):
+        try:
+            estado["encendido"] = mc.is_power_on()
+        except Exception as e:
+            estado["encendido"] = f"error: {e}"
+    else:
+        estado["encendido"] = "no soportado"
+    return estado
+
+def obtener_angulos(mc):
+    """Devuelve la lista de ángulos actuales [J1, J2, J3, J4], o None si falla."""
+    try:
+        return mc.get_angles()
+    except Exception as e:
+        print(f"[Error] No se pudieron leer los ángulos: {e}")
+        return None
