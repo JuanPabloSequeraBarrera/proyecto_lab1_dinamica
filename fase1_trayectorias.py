@@ -9,21 +9,8 @@ directa, el Jacobiano, la cinematica inversa, Open3D y las colisiones.
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-
-def trayectoria_circulo(centro, radio, z, numero_puntos=120):
-    """
-    Esta función recibe 4 parametros, el centro que en todos los casos es (0,0) en xy, el radio que es que tan grande es el circulo, z que es una altura aproximada
-    """
-    
-    angulo = np.linspace(0.0, 2.0 * np.pi, numero_puntos) #el operador linspace crea puntos equidistanes , en este caso le estoy diciendo (incie en 0, termine en pi, haga 120 puntos)
-    x = centro[0] + radio * np.cos(angulo) #aqui se usa la ecuacion de un circulo(x o y = centro[cordanada x o y] + radio*coseno(angulo n))
-    y = centro[1] + radio * np.sin(angulo)# esta es la componente y del centro 
-    return np.column_stack((x, y, np.full_like(x, z)))
-    #full like crea un vector de valores z con la misma dimension de los valores de x pero con su valor z, digamos, si x tiene 5 elementos z también tendrá 5-
-    #solamente que tendrá el valor de z, en este caso 0 que es la altura del plano 
-    #column stack simplemente une los tres valores que le mandas en cada columna y lo manda como una lista de listas que el robot debe visitar
-    # el return sería algo como [[x0,y0,z(este sería el mismo valor de z siempre)],[x1,y1,z],[x2,y2,z],[]}
+import sympy as sp
+import sympy.physics.mechanics as me
 
 def trayectoria_poligono(centro, radio, z, numero_lados, puntos_por_lado=20): #el radio aquí es el radio de la circurferencia imaginaria de un poligono, o sea donde viven los vertices
     """Devuelve un poligono regular cerrado: triangulo, cuadrado, hexagono, etc."""
@@ -55,6 +42,15 @@ def trayectoria_poligono(centro, radio, z, numero_lados, puntos_por_lado=20): #e
     return np.column_stack((puntos_xy, np.full(len(puntos_xy), z)))
     #este np.full crea tantos vectores de z valor como la longitud de puntos y lo apila para devolver un vector [[x0,y0,z],[x1,y1,z],...] 
 
+
+
+
+
+
+
+
+
+
 def simular_mypalletizer(L1, L2, L3, L4, T): #las cuatro longitudes de brazo de robot y T la trayectoria generada por las anteriores funciones
     """Muestra la trayectoria T  que puede ser (circulo,cuadrado,triangulo, hexagono).
     """
@@ -77,6 +73,50 @@ def simular_mypalletizer(L1, L2, L3, L4, T): #las cuatro longitudes de brazo de 
     plt.show()
     return T
 
+def trayectoria_circulo(centro, radio, z, numero_puntos=120):
+    
+    angulo = np.linspace(0.0, 2.0 * np.pi, numero_puntos) #el operador linspace crea puntos equidistanes , en este caso le estoy diciendo (incie en 0, termine en pi, haga 120 puntos)
+    x = centro[0] + radio * np.cos(angulo) #aqui se usa la ecuacion de un circulo(x o y = centro[cordanada x o y] + radio*coseno(angulo n))
+    y = centro[1] + radio * np.sin(angulo)# esta es la componente y del centro 
+    return np.column_stack((x, y, np.full_like(x, z)))
+    #full like crea un vector de valores z con la misma dimension de los valores de x pero con su valor z, digamos, si x tiene 5 elementos z también tendrá 5-
+    #solamente que tendrá el valor de z, en este caso 0 que es la altura del plano 
+    #column stack simplemente une los tres valores que le mandas en cada columna y lo manda como una lista de listas que el robot debe visitar
+    # el return sería algo como [[x0,y0,z(este sería el mismo valor de z siempre)],[x1,y1,z],[x2,y2,z],[]}
+    #full like crea un vector de valores z con la misma dimension de los valores de x pero con su valor z, digamos, si x tiene 5 elementos z también tendrá 5-
+    #solamente que tendrá el valor de z, en este caso 0 que es la altura del plano 
+    #column stack simplemente une los tres valores que le mandas en cada columna y lo manda como una lista de listas que el robot debe visitar
+    # el return sería algo como [[x0,y0,z(este sería el mismo valor de z siempre)],[x1,y1,z],[x2,y2,z],[]}
+
+
+
+
+
+def cinematica_inversa(T,l1,l2):
+    # Sacamos directamente las columnas x e y de la trayectoria
+    x = T[:, 0]
+    y = T[:, 1]
+    home = [-2.19, 4.13, 1.66, 0.52]
+    x = x - 0.0347
+    y = y + 0.0529
+
+    r = np.sqrt(x**2 + y**2)
+    alpha = np.arccos((-r**2 + l1**2 + l2**2) / (2 * l1 * l2))
+
+    q2 = -alpha + np.pi
+
+    phi = np.arcsin((l2 * np.sin(alpha)) / r)
+
+    theta = np.arctan2(y, x)
+    q1 = theta - phi
+
+    angulos = np.column_stack((np.rad2deg(np.zeros_like(q1) - home[0]),np.rad2deg(q1 - home[1]),np.rad2deg(q2 - home[2]),np.rad2deg(np.zeros_like(q1) - home[3])))
+    print(angulos)
+    return angulos
+
+
+
+
 
 if __name__ == "__main__":
     #hay que cambiar esto por las longitudes del robot que tengamos
@@ -89,6 +129,5 @@ if __name__ == "__main__":
     T_cuadrado = trayectoria_poligono(centro, 0.035, altura_plano, 4)
     T_triangulo = trayectoria_poligono(centro, 0.035, altura_plano, 3)
     T_hexagono = trayectoria_poligono(centro, 0.035, altura_plano, 6)
-    #T_estrella = trayectoria_estrella(centro, 0.040, 0.018, altura_plano)
-
-    simular_mypalletizer(L1, L2, L3, L4, T_circulo)
+    #simular_mypalletizer(L1, L2, L3, L4, T_circulo)
+    cinematica_inversa(T_circulo,L1,L2)
