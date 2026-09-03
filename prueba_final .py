@@ -17,28 +17,11 @@ from fase1_trayectorias import (
 )
 
 
-def mover_circulo(
-    mc,
-    centro,
-    radio,
-    numero_puntos=20,
-    velocidad=10,
-):
+def mover_circulo(mc,centro,radio,numero_puntos=20,velocidad=10,):
     # Círculo local alrededor de la posición home.
-    T = trayectoria_circulo(
-        centro=centro,
-        radio=radio,
-        z=0.0,
-        numero_puntos=numero_puntos,
-    )
+    T = trayectoria_circulo(centro=centro,radio=radio,z=0.0,numero_puntos=numero_puntos,)
 
-    angulos = cinematica_inversa(
-        T,
-        l1=0.140,
-        l2_x=0.178,
-        l2_y=-0.005,
-        home=ORIGEN_DIBUJO_GRADOS,
-    )
+    angulos = cinematica_inversa(T,l1=0.140,l2_x=0.178,l2_y=-0.005,home=ORIGEN_DIBUJO_GRADOS,)
 
     print("\nPrimer punto:")
     print(np.round(angulos[0], 2))
@@ -46,12 +29,12 @@ def mover_circulo(
     print("\nÁngulos mínimos:")
     print(np.round(np.min(angulos, axis=0), 2))
 
+
     print("\nÁngulos máximos:")
     print(np.round(np.max(angulos, axis=0), 2))
 
     input(
-        "\nVerifica los ángulos mostrados y retira las manos."
-        "\nPresiona ENTER para ir al primer punto..."
+        "\nPresione ENTER para ir al primer punto..."
     )
 
     # Primero se llega y verifica el punto inicial.
