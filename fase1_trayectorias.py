@@ -81,7 +81,7 @@ def trayectoria_circulo(centro, radio, z, numero_puntos=120):
 
 
 
-def cinematica_inversa(T,l1=0.140,l2_x=0.178,l2_y=-0.005,home=None,):
+def cinematica_inversa(T,l1=0.140,l2_x=0.178,l2_y=-0.005,home=None):
     """
     Convierte desplazamientos locales [x, y, z] en ángulos 
     [J1, J2, J3, J4].
