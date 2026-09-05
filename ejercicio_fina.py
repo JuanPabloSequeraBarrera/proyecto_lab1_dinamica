@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 
 from fase1_trayectorias import cinematica_inversa
-from configuracion_robot import ORIGEN_DIBUJO_GRADOS
+from configuracion_robot import (ORIGEN_DIBUJO_GRADOS,VELOCIDAD_PRUEBAS)
+                                
 from control_robot import (
     conectar_robot,
-    mover_angulos_y_verificar, 
-    validar_angulos
+    ejecutar_trayectoria_angulos
 )
 
 
@@ -23,6 +23,22 @@ z = np.zeros_like(x)
 trayectoria = np.column_stack([x_local,y_local,z])
 
 angulos = cinematica_inversa(trayectoria,l1=0.140,l2_x=0.178,l2_y=-0.005,home=ORIGEN_DIBUJO_GRADOS)
-print(angulos)
 
+
+angulos = np.vstack((angulos, angulos[0]))
+
+mc = conectar_robot()
+
+try:
+    objetivos, logrados, errores = ejecutar_trayectoria_angulos(mc,angulos,velocidad=VELOCIDAD_PRUEBAS,)
+
+finally:
+    try:
+        mc.stop()
+    finally:
+        mc.close()
+
+print(objetivos)
+print(logrados)
+print(errores)   
 
