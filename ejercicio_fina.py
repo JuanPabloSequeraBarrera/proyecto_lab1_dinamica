@@ -38,7 +38,7 @@ finally:
     finally:
         mc.close()
 
-print(objetivos)
-print(logrados)
+#print(objetivos)
+#print(logrados)
 print(errores)   
 
