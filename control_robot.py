@@ -259,7 +259,7 @@ def esperar_angulos(
             )
             error_maximo = float(np.max(errores))
 
-            if error_maximo <= tolerancia_grados:
+            if error_maximo <= tolerancia_grados and mc.is_moving() == 0:
                 return ultima_lectura
 
         sleep(0.1)
@@ -315,62 +315,50 @@ def mover_angulos_y_verificar(
 
     return final
 
-
-def ejecutar_trayectoria_angulos(
-    mc,
-    puntos_angulares,
-    velocidad,
-    tolerancia_grados=2.0,
-    timeout_por_punto=10.0,
+def ejecutar_trayectoria_angulos(mc,puntos_angulares,velocidad,tolerancia_grados=2.0,timeout_por_punto=10.0,
 ):
-    """Ejecuta y verifica una trayectoria angular N x 4."""
-
-    puntos = np.asarray(puntos_angulares, dtype=float)
-
-    if puntos.ndim != 2 or puntos.shape[1] != 4:
-        raise ValueError(
-            "La trayectoria angular debe tener tamaño N x 4."
-        )
-
-    if len(puntos) == 0:
-        raise ValueError("La trayectoria angular está vacía.")
-
-    if not np.all(np.isfinite(puntos)):
-        raise ValueError(
-            "La trayectoria contiene valores no numéricos o infinitos."
-        )
-
-    if not 1 <= velocidad <= 100:
-        raise ValueError("La velocidad debe estar entre 1 y 100.")
-
-    # Validar todos los puntos antes de mover el robot.
-    objetivos = [
+    objetivos = np.array([
         validar_angulos(punto.tolist())
-        for punto in puntos
-    ]
+        for punto in np.asarray(puntos_angulares, dtype=float)
+    ])
 
-    total = len(objetivos)
-    final = None
+    logrados = []
 
-    for indice, objetivo in enumerate(objetivos, start=1):
-        mc.send_angles(objetivo, velocidad)
+    for i, objetivo in enumerate(objetivos):
 
-        final = esperar_angulos(
+        # Enviar el punto al robot.
+        mc.send_angles(objetivo.tolist(), velocidad)
+        sleep(0.2)
+
+        # Esperar y obtener los ángulos leídos del robot.
+        actual = esperar_angulos(
             mc,
             objetivo,
             tolerancia_grados=tolerancia_grados,
             timeout_s=timeout_por_punto,
         )
 
-        print(
-            f"Punto angular {indice}/{total}:",
-            [round(valor, 2) for valor in final],
-        )
+        logrados.append(actual)
 
-    print("Trayectoria angular terminada y verificada.")
-    print("Ángulos finales:", final)
+        # Error absoluto de cada articulación en este punto.
+        error_punto = np.abs(objetivo - np.asarray(actual))
 
-    return final
+        print(f"Punto {i + 1}/{len(objetivos)}")
+        print("  Teórico:", np.round(objetivo, 2).tolist())
+        print("  Logrado:", np.round(actual, 2).tolist())
+        print("  Error [°]:", np.round(error_punto, 2).tolist())
+
+    logrados = np.asarray(logrados)
+    errores = np.abs(objetivos - logrados)
+
+    print(
+        "\nError medio por articulación [°]:",
+        np.round(errores.mean(axis=0), 3).tolist()
+    )
+    print(f"Error angular medio J1,J4: {errores.mean():.3f}°")
+
+    return objetivos, logrados, errores
+
 
 def obtener_estado(mc):
     """Devuelve un dict con los ángulos actuales y si el robot está encendido."""
